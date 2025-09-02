@@ -4,7 +4,6 @@ import {
   RefObject,
   useContext,
   useEffect,
-  useRef,
   useState,
 } from "react";
 import hash from "object-hash";
@@ -16,7 +15,15 @@ const collectStyles = (doc: Document) => {
   const collected: HTMLElement[] = [];
 
   doc.querySelectorAll(styleSelector).forEach((style) => {
-    collected.push(style as HTMLElement);
+    if (style.tagName === "STYLE") {
+      const hasContent = !!style.innerHTML.trim();
+
+      if (hasContent) {
+        collected.push(style as HTMLElement);
+      }
+    } else {
+      collected.push(style as HTMLElement);
+    }
   });
 
   return collected;
@@ -33,7 +40,9 @@ const getStyleSheet = (el: HTMLElement) => {
 const getStyles = (styleSheet?: CSSStyleSheet) => {
   if (styleSheet) {
     try {
-      return [...styleSheet.cssRules].map((rule) => rule.cssText).join("");
+      return [...Array.from(styleSheet.cssRules)]
+        .map((rule) => rule.cssText)
+        .join("");
     } catch (e) {
       console.warn(
         "Access to stylesheet %s is denied. Ignoring…",
@@ -303,7 +312,8 @@ export type AutoFrameProps = {
   className: string;
   debug?: boolean;
   id?: string;
-  onStylesLoaded?: () => void;
+  onReady?: () => void;
+  onNotReady?: () => void;
   frameRef: RefObject<HTMLIFrameElement | null>;
 };
 
@@ -321,26 +331,37 @@ function AutoFrame({
   className,
   debug,
   id,
-  onStylesLoaded,
+  onReady = () => {},
+  onNotReady = () => {},
   frameRef,
   ...props
 }: AutoFrameProps) {
   const [loaded, setLoaded] = useState(false);
   const [ctx, setCtx] = useState<AutoFrameContext>({});
   const [mountTarget, setMountTarget] = useState<HTMLElement | null>();
+  const [stylesLoaded, setStylesLoaded] = useState(false);
 
   useEffect(() => {
     if (frameRef.current) {
+      const doc = frameRef.current.contentDocument;
+      const win = frameRef.current.contentWindow;
+
       setCtx({
-        document: frameRef.current.contentDocument || undefined,
-        window: frameRef.current.contentWindow || undefined,
+        document: doc || undefined,
+        window: win || undefined,
       });
 
       setMountTarget(
         frameRef.current.contentDocument?.getElementById("frame-root")
       );
+
+      if (doc && win && stylesLoaded) {
+        onReady();
+      } else {
+        onNotReady();
+      }
     }
-  }, [frameRef, loaded]);
+  }, [frameRef, loaded, stylesLoaded]);
 
   return (
     <iframe
@@ -355,7 +376,10 @@ function AutoFrame({
     >
       <autoFrameContext.Provider value={ctx}>
         {loaded && mountTarget && (
-          <CopyHostStyles debug={debug} onStylesLoaded={onStylesLoaded}>
+          <CopyHostStyles
+            debug={debug}
+            onStylesLoaded={() => setStylesLoaded(true)}
+          >
             {createPortal(children, mountTarget)}
           </CopyHostStyles>
         )}

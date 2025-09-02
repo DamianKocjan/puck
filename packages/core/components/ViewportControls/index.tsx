@@ -1,6 +1,6 @@
 import { Monitor, Smartphone, Tablet, ZoomIn, ZoomOut } from "lucide-react";
 import { IconButton } from "../IconButton";
-import { useAppContext } from "../Puck/context";
+import { useAppStore } from "../../store";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { getClassNameFactory } from "../../lib";
 
@@ -29,18 +29,19 @@ const ViewportButton = ({
   width: number;
   onClick: (viewport: Viewport) => void;
 }) => {
-  const { state } = useAppContext();
+  const viewports = useAppStore((s) => s.state.ui.viewports);
 
   const [isActive, setIsActive] = useState(false);
 
   // We use an effect so this doesn't cause hydration warnings with SSR
   useEffect(() => {
-    setIsActive(width === state.ui.viewports.current.width);
-  }, [width, state.ui.viewports.current.width]);
+    setIsActive(width === viewports.current.width);
+  }, [width, viewports.current.width]);
 
   return (
     <span className={getClassNameButton({ isActive })}>
       <IconButton
+        type="button"
         title={title}
         disabled={isActive}
         onClick={(e) => {
@@ -76,7 +77,7 @@ export const ViewportControls = ({
   onViewportChange: (viewport: Viewport) => void;
   onZoom: (zoom: number) => void;
 }) => {
-  const { viewports } = useAppContext();
+  const viewports = useAppStore((s) => s.viewports);
 
   const defaultsContainAutoZoom = defaultZoomOptions.find(
     (option) => option.value === autoZoom
@@ -121,6 +122,7 @@ export const ViewportControls = ({
       ))}
       <div className={getClassName("divider")} />
       <IconButton
+        type="button"
         title="Zoom viewport out"
         disabled={zoom <= zoomOptions[0]?.value}
         onClick={(e) => {
@@ -138,6 +140,7 @@ export const ViewportControls = ({
         <ZoomOut size={16} />
       </IconButton>
       <IconButton
+        type="button"
         title="Zoom viewport in"
         disabled={zoom >= zoomOptions[zoomOptions.length - 1]?.value}
         onClick={(e) => {
@@ -159,6 +162,9 @@ export const ViewportControls = ({
       <select
         className={getClassName("zoomSelect")}
         value={zoom.toString()}
+        onClick={(e) => {
+          e.stopPropagation();
+        }}
         onChange={(e) => {
           onZoom(parseFloat(e.currentTarget.value));
         }}

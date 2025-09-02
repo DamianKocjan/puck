@@ -1,26 +1,40 @@
-import { Data, DefaultComponentProps, DefaultRootFieldProps } from "../types";
-import { defaultData } from "./default-data";
+import { walkTree } from "./data/walk-tree";
+import {
+  Config,
+  Data,
+  DefaultComponentProps,
+  DefaultComponents,
+  DefaultRootFieldProps,
+} from "../types";
+import { defaultData } from "./data/default-data";
 
 type PropTransform<
-  Props extends DefaultComponentProps = DefaultComponentProps,
+  Components extends DefaultComponents = DefaultComponents,
   RootProps extends DefaultComponentProps = DefaultRootFieldProps
 > = Partial<
   {
-    [ComponentName in keyof Props]: (
-      props: Props[ComponentName] & { [key: string]: any }
-    ) => Props[ComponentName];
+    [ComponentName in keyof Components]: (
+      props: Components[ComponentName] & { [key: string]: any }
+    ) => Components[ComponentName];
   } & { root: (props: RootProps & { [key: string]: any }) => RootProps }
 >;
 
 export function transformProps<
-  Props extends DefaultComponentProps = DefaultComponentProps,
+  Components extends DefaultComponents = DefaultComponents,
   RootProps extends DefaultComponentProps = DefaultRootFieldProps
->(data: Partial<Data>, propTransforms: PropTransform<Props, RootProps>): Data {
+>(
+  data: Partial<Data>,
+  propTransforms: PropTransform<Components, RootProps>,
+  config: Config = { components: {} }
+): Data {
   const mapItem = (item: any) => {
     if (propTransforms[item.type]) {
       return {
         ...item,
-        props: propTransforms[item.type]!(item.props as any),
+        props: {
+          id: item.props.id,
+          ...propTransforms[item.type]!(item.props as any),
+        },
       };
     }
 
@@ -29,29 +43,23 @@ export function transformProps<
 
   const defaultedData = defaultData(data);
 
-  // DEPRECATED
+  // DEPRECATED - handle legacy root props
   const rootProps = defaultedData.root.props || defaultedData.root;
   let newRoot = { ...defaultedData.root };
   if (propTransforms["root"]) {
-    if (defaultedData.root.props) {
-      newRoot.props = propTransforms["root"](rootProps as any);
-    } else {
-      newRoot = propTransforms["root"](rootProps as any);
-    }
+    newRoot.props = propTransforms["root"](rootProps as any);
   }
 
-  const afterPropTransforms: Data = {
-    ...defaultedData,
-    root: newRoot,
-    content: defaultedData.content.map(mapItem),
-    zones: Object.keys(data.zones || {}).reduce(
-      (acc, zoneKey) => ({
-        ...acc,
-        [zoneKey]: data.zones![zoneKey].map(mapItem),
-      }),
-      {}
-    ),
-  };
+  const dataWithUpdatedRoot = { ...defaultedData, root: newRoot };
 
-  return afterPropTransforms;
+  const updatedData = walkTree(dataWithUpdatedRoot, config, (content) =>
+    content.map(mapItem)
+  );
+
+  // DEPRECATED - handle legacy root props
+  if (!defaultedData.root.props) {
+    updatedData.root = updatedData.root.props as any;
+  }
+
+  return updatedData;
 }

@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
-import config, { initialData, Props, RootProps, UserData } from "../config";
+import config, { componentKey } from "../config";
+import { initialData } from "../config/initial-data";
 import { Metadata, resolveAllData } from "@/core";
+import { Components, UserData } from "../config/types";
+import { RootProps } from "../config/root";
 
 const isBrowser = typeof window !== "undefined";
 
@@ -14,9 +17,6 @@ export const useDemoData = ({
   metadata?: Metadata;
 }) => {
   // unique b64 key that updates each time we add / remove components
-  const componentKey = Buffer.from(
-    `${Object.keys(config.components).join("-")}-${JSON.stringify(initialData)}`
-  ).toString("base64");
 
   const key = `puck-demo:${componentKey}:${path}`;
 
@@ -38,7 +38,7 @@ export const useDemoData = ({
 
   useEffect(() => {
     if (data && !isEdit) {
-      resolveAllData<Props, RootProps>(data, config, metadata).then(
+      resolveAllData<Components, RootProps>(data, config, metadata).then(
         setResolvedData
       );
     }

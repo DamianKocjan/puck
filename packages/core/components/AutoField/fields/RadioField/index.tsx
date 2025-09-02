@@ -1,9 +1,7 @@
-import { useMemo } from "react";
 import getClassNameFactory from "../../../../lib/get-class-name-factory";
 import styles from "../../styles.module.css";
 import { CheckCircle } from "lucide-react";
 import { FieldPropsInternal } from "../..";
-import { safeJsonParse } from "../../../../lib/safe-json-parse";
 
 const getClassName = getClassNameFactory("Input", styles);
 
@@ -15,21 +13,16 @@ export const RadioField = ({
   name,
   id,
   label,
+  labelIcon,
   Label,
 }: FieldPropsInternal) => {
-  const flatOptions = useMemo(
-    () =>
-      field.type === "radio" ? field.options.map(({ value }) => value) : [],
-    [field]
-  );
-
   if (field.type !== "radio" || !field.options) {
     return null;
   }
 
   return (
     <Label
-      icon={<CheckCircle size={16} />}
+      icon={labelIcon || <CheckCircle size={16} />}
       label={label || name}
       readOnly={readOnly}
       el="div"
@@ -43,23 +36,16 @@ export const RadioField = ({
             <input
               type="radio"
               className={getClassName("radioInput")}
-              value={option.value as string | number}
+              value={JSON.stringify({ value: option.value })}
               name={name}
               onChange={(e) => {
-                const jsonValue =
-                  safeJsonParse(e.target.value) ?? e.target.value;
-
-                if (flatOptions.indexOf(jsonValue) > -1) {
-                  onChange(jsonValue);
-                } else {
-                  onChange(e.target.value);
-                }
+                onChange(JSON.parse(e.target.value).value);
               }}
               disabled={readOnly}
               checked={value === option.value}
             />
             <div className={getClassName("radioInner")}>
-              {option.label || option.value}
+              {option.label || option.value?.toString()}
             </div>
           </label>
         ))}

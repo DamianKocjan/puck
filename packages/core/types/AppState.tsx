@@ -1,4 +1,4 @@
-import { ItemSelector } from "../lib/get-item";
+import { ItemSelector } from "../lib/data/get-item";
 import { Viewport } from "./API";
 import { Data } from "./Data";
 
@@ -12,6 +12,8 @@ export type ArrayState = { items: ItemWithId[]; openId: string };
 export type UiState = {
   leftSideBarVisible: boolean;
   rightSideBarVisible: boolean;
+  leftSideBarWidth?: number | null;
+  rightSideBarWidth?: number | null;
   itemSelector: ItemSelector | null;
   arrayState: Record<string, ArrayState | undefined>;
   previewMode: "interactive" | "edit";

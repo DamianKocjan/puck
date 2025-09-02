@@ -1,19 +1,24 @@
+// Disable rules of hooks as they are regularly used inside render functions
+/* eslint-disable react-hooks/rules-of-hooks */
+
 "use client";
 
-import { ActionBar, Button, Data, Puck, Render } from "@/core";
+import { ActionBar, Button, Data, Puck, Render, useGetPuck } from "@/core";
 import { HeadingAnalyzer } from "@/plugin-heading-analyzer/src/HeadingAnalyzer";
-import config, { UserConfig } from "../../../config";
+import config from "../../../config";
+import { UserConfig } from "../../../config/types";
 import { useDemoData } from "../../../lib/use-demo-data";
-import { IconButton, usePuck } from "@/core";
+import { IconButton, createUsePuck } from "@/core";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { Drawer } from "@/core/components/Drawer";
 import { ChevronUp, ChevronDown, Globe, Lock, Unlock } from "lucide-react";
 
+const usePuck = createUsePuck<UserConfig>();
+
 const CustomHeader = ({ onPublish }: { onPublish: (data: Data) => void }) => {
-  const { appState, dispatch } = usePuck();
-  const {
-    ui: { previewMode },
-  } = appState;
+  const getPuck = useGetPuck();
+  const dispatch = usePuck((s) => s.dispatch);
+  const previewMode = usePuck((s) => s.appState.ui.previewMode);
 
   const toggleMode = () => {
     dispatch({
@@ -45,7 +50,7 @@ const CustomHeader = ({ onPublish }: { onPublish: (data: Data) => void }) => {
             Switch to {previewMode === "edit" ? "interactive" : "edit"}
           </Button>
           <Button
-            onClick={() => onPublish(appState.data)}
+            onClick={() => onPublish(getPuck().appState.data)}
             icon={<Globe size="14" />}
           >
             Publish
@@ -66,25 +71,26 @@ const Tabs = ({
   scrollTop: number;
 }) => {
   const [currentTab, setCurrentTab] = useState(-1);
-  const { appState } = usePuck();
+  const itemSelector = usePuck((s) => s.appState.ui.itemSelector);
+  const isDragging = usePuck((s) => s.appState.ui.isDragging);
 
   const currentTabRef = useRef(currentTab);
 
   useEffect(() => {
-    if (currentTabRef.current !== -1 && appState.ui.itemSelector) {
+    if (currentTabRef.current !== -1 && itemSelector) {
       setCurrentTab(1);
     }
-  }, [appState.ui.itemSelector]);
+  }, [itemSelector]);
 
   useEffect(() => {
     currentTabRef.current = currentTab;
   }, [currentTab]);
 
   useEffect(() => {
-    if (appState.ui.isDragging && currentTab === 1) {
+    if (isDragging && currentTab === 1) {
       setCurrentTab(-1);
     }
-  }, [currentTab, appState.ui.isDragging]);
+  }, [currentTab, isDragging]);
 
   useEffect(() => {
     if (scrollTop === 0) {
@@ -293,7 +299,7 @@ const CustomPuck = ({ dataKey }: { dataKey: string }) => {
 };
 
 const CustomDrawer = () => {
-  const { getPermissions } = usePuck();
+  const getPermissions = usePuck((s) => s.getPermissions);
 
   return (
     <Drawer>
@@ -309,7 +315,7 @@ const CustomDrawer = () => {
       >
         {Object.keys(config.components).map((componentKey, componentIndex) => {
           const canInsert = getPermissions({
-            type: componentKey,
+            type: componentKey as keyof UserConfig["components"],
           }).insert;
 
           return (
@@ -383,11 +389,23 @@ export function Client({ path, isEdit }: { path: string; isEdit: boolean }) {
           outline: ({ children }) => (
             <div style={{ padding: 16 }}>{children}</div>
           ),
+          componentOverlay: ({ hover, isSelected }) => {
+            return (
+              <div
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  background: hover ? "red" : "transparent",
+                  outline: isSelected ? "2px solid blue" : "",
+                  opacity: 0.4,
+                }}
+              />
+            );
+          },
           actionBar: ({ children, label, parentAction }) => {
-            const { getPermissions, selectedItem, refreshPermissions } =
-              // Disable rules of hooks since this is a render function
-              // eslint-disable-next-line react-hooks/rules-of-hooks
-              usePuck<UserConfig>();
+            const selectedItem = usePuck((s) => s.selectedItem);
+            const getPermissions = usePuck((s) => s.getPermissions);
+            const refreshPermissions = usePuck((s) => s.refreshPermissions);
 
             const globalPermissions = getPermissions();
 
@@ -429,6 +447,8 @@ export function Client({ path, isEdit }: { path: string; isEdit: boolean }) {
                           ...lockedComponents,
                           [selectedItem.props.id as string]: !isLocked,
                         });
+
+                        refreshPermissions({ item: selectedItem });
                       }}
                       label={isLocked ? "Unlock component" : "Lock component"}
                     >
@@ -439,7 +459,7 @@ export function Client({ path, isEdit }: { path: string; isEdit: boolean }) {
               </ActionBar>
             );
           },
-          components: () => <CustomDrawer />,
+          drawer: () => <CustomDrawer />,
           puck: () => <CustomPuck dataKey={key} />,
         }}
       />

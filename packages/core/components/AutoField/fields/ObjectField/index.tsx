@@ -12,6 +12,7 @@ export const ObjectField = ({
   value,
   name,
   label,
+  labelIcon,
   Label,
   readOnly,
   id,
@@ -27,7 +28,7 @@ export const ObjectField = ({
   return (
     <Label
       label={label || name}
-      icon={<MoreVertical size={16} />}
+      icon={labelIcon || <MoreVertical size={16} />}
       el="div"
       readOnly={readOnly}
     >
@@ -36,12 +37,9 @@ export const ObjectField = ({
           {Object.keys(field.objectFields!).map((subName) => {
             const subField = field.objectFields![subName];
 
-            const subPath = `${name}.${subName}`;
-            const localSubPath = `${localName || name}.${subName}`;
+            const subPath = `${localName}.${subName}`;
 
-            const subReadOnly = readOnly
-              ? readOnly
-              : readOnlyFields[localSubPath];
+            const subReadOnly = readOnly ? readOnly : readOnlyFields[subPath];
 
             const label = subField.label || subName;
 

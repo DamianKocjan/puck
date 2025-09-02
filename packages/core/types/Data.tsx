@@ -1,3 +1,5 @@
+import { DefaultComponents } from "./Config";
+import { WithDeepSlots } from "./Internal";
 import { DefaultComponentProps, DefaultRootFieldProps } from "./Props";
 import { AsFieldProps, WithId } from "./Utils";
 
@@ -25,32 +27,52 @@ export type RootData<
 
 export type ComponentData<
   Props extends DefaultComponentProps = DefaultComponentProps,
+  Name = string,
+  Components extends Record<string, DefaultComponentProps> = Record<
+    string,
+    DefaultComponentProps
+  >
+> = {
+  type: Name;
+  props: WithDeepSlots<WithId<Props>, Content<Components>>;
+} & BaseData<Props>;
+
+export type ComponentDataOptionalId<
+  Props extends DefaultComponentProps = DefaultComponentProps,
   Name = string
 > = {
   type: Name;
-  props: WithId<Props>;
+  props: Props & {
+    id?: string;
+  };
 } & BaseData<Props>;
 
 // Backwards compatibility
 export type MappedItem = ComponentData;
 
 export type ComponentDataMap<
-  Props extends Record<string, DefaultComponentProps> = DefaultComponentProps
+  Components extends DefaultComponents = DefaultComponents
 > = {
-  [K in keyof Props]: ComponentData<Props[K], K extends string ? K : never>;
-}[keyof Props];
+  [K in keyof Components]: ComponentData<
+    Components[K],
+    K extends string ? K : never,
+    Components
+  >;
+}[keyof Components];
 
 export type Content<
-  PropsMap extends { [key: string]: any } = { [key: string]: any }
+  PropsMap extends { [key: string]: DefaultComponentProps } = {
+    [key: string]: DefaultComponentProps;
+  }
 > = ComponentDataMap<PropsMap>[];
 
 export type Data<
-  Props extends DefaultComponentProps = DefaultComponentProps,
+  Components extends DefaultComponents = DefaultComponents,
   RootProps extends DefaultComponentProps = DefaultRootFieldProps
 > = {
-  root: RootData<RootProps>;
-  content: Content<Props>;
-  zones?: Record<string, Content<Props>>;
+  root: WithDeepSlots<RootData<RootProps>, Content<Components>>;
+  content: Content<Components>;
+  zones?: Record<string, Content<Components>>;
 };
 
 export type Metadata = { [key: string]: any };

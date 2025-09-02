@@ -1,19 +1,29 @@
 import { ReactNode, useEffect, useState } from "react";
-import { Config, UiState } from "../types";
 import { ComponentList } from "../components/ComponentList";
+import { useAppStore } from "../store";
 
-export const useComponentList = (config: Config, ui: UiState) => {
+export const useComponentList = () => {
   const [componentList, setComponentList] = useState<ReactNode[]>();
+  const config = useAppStore((s) => s.config);
+  const uiComponentList = useAppStore((s) => s.state.ui.componentList);
 
   useEffect(() => {
-    if (Object.keys(ui.componentList).length > 0) {
+    if (Object.keys(uiComponentList).length > 0) {
       const matchedComponents: string[] = [];
 
       let _componentList: ReactNode[];
 
-      _componentList = Object.entries(ui.componentList).map(
+      _componentList = Object.entries(uiComponentList).map(
         ([categoryKey, category]) => {
-          if (category.visible === false || !category.components) {
+          if (!category.components) {
+            return null;
+          }
+
+          category.components.forEach((componentName) => {
+            matchedComponents.push(componentName as string);
+          });
+
+          if (category.visible === false) {
             return null;
           }
 
@@ -24,8 +34,6 @@ export const useComponentList = (config: Config, ui: UiState) => {
               title={category.title || categoryKey}
             >
               {category.components.map((componentName, i) => {
-                matchedComponents.push(componentName as string);
-
                 const componentConf = config.components[componentName] || {};
 
                 return (
@@ -48,14 +56,14 @@ export const useComponentList = (config: Config, ui: UiState) => {
 
       if (
         remainingComponents.length > 0 &&
-        !ui.componentList.other?.components &&
-        ui.componentList.other?.visible !== false
+        !uiComponentList.other?.components &&
+        uiComponentList.other?.visible !== false
       ) {
         _componentList.push(
           <ComponentList
             id="other"
             key="other"
-            title={ui.componentList.other?.title || "Other"}
+            title={uiComponentList.other?.title || "Other"}
           >
             {remainingComponents.map((componentName, i) => {
               const componentConf = config.components[componentName] || {};
@@ -75,7 +83,7 @@ export const useComponentList = (config: Config, ui: UiState) => {
 
       setComponentList(_componentList);
     }
-  }, [config.categories, config.components, ui.componentList]);
+  }, [config.categories, config.components, uiComponentList]);
 
   return componentList;
 };
