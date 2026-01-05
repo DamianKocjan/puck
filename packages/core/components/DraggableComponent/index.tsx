@@ -33,6 +33,7 @@ import { useSortable } from "@dnd-kit/react/sortable";
 import { accumulateTransform } from "../../lib/accumulate-transform";
 import { useContextStore } from "../../lib/use-context-store";
 import { useOnDragFinished } from "../../lib/dnd/use-on-drag-finished";
+import { LoadedRichTextMenu } from "../RichTextMenu";
 
 const getClassName = getClassNameFactory("DraggableComponent", styles);
 
@@ -226,14 +227,17 @@ export const DraggableComponent = ({
     return cleanup;
   }, [permissions.drag, zoneCompound]);
 
+  const [, setRerender] = useState(0);
+
   const ref = useRef<HTMLElement>(null);
 
   const refSetter = useCallback(
     (el: HTMLElement | null) => {
       sortableRef(el);
 
-      if (el) {
+      if (ref.current !== el) {
         ref.current = el;
+        setRerender((update) => update + 1);
       }
     },
     [sortableRef]
@@ -355,14 +359,23 @@ export const DraggableComponent = ({
         e.stopPropagation();
       }
 
-      dispatch({
-        type: "setUi",
-        ui: {
-          itemSelector: { index, zone: zoneCompound },
-        },
-      });
+      if (isSelected) {
+        dispatch({
+          type: "setUi",
+          ui: {
+            itemSelector: null,
+          },
+        });
+      } else {
+        dispatch({
+          type: "setUi",
+          ui: {
+            itemSelector: { index, zone: zoneCompound },
+          },
+        });
+      }
     },
-    [index, zoneCompound, id]
+    [index, zoneCompound, id, isSelected]
   );
 
   const appStore = useAppStoreApi();
@@ -595,6 +608,12 @@ export const DraggableComponent = ({
     ]
   );
 
+  const richText = useAppStore((s) =>
+    s.currentRichText?.inlineComponentId === id ? s.currentRichText : null
+  );
+
+  const hasNormalActions = permissions.duplicate || permissions.delete;
+
   return (
     <DropZoneProvider value={nextContextValue}>
       {dragFinished &&
@@ -636,6 +655,18 @@ export const DraggableComponent = ({
                   parentAction={parentAction}
                   label={DEBUG ? id : label}
                 >
+                  {richText && (
+                    <>
+                      <LoadedRichTextMenu
+                        editor={richText.editor}
+                        field={richText.field}
+                        inline
+                        readOnly={false}
+                      />
+                      {hasNormalActions && <ActionBar.Separator />}
+                    </>
+                  )}
+
                   {permissions.duplicate && (
                     <ActionBar.Action onClick={onDuplicate} label="Duplicate">
                       <Copy size={16} />

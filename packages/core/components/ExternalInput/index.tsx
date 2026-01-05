@@ -13,7 +13,7 @@ import { Modal } from "../Modal";
 import { Heading } from "../Heading";
 import { Loader } from "../Loader";
 import { Button } from "../Button";
-import { AutoFieldPrivate } from "../AutoField";
+import { AutoField, AutoFieldPrivate, FieldLabel } from "../AutoField";
 import { IconButton } from "../IconButton";
 
 const getClassName = getClassNameFactory("ExternalInput", styles);
@@ -41,6 +41,7 @@ export const ExternalInput = ({
     mapRow = (val: any) => val,
     filterFields,
   } = field || {};
+  const { enabled: shouldCacheData } = field.cache ?? { enabled: true };
 
   const [data, setData] = useState<Record<string, any>[]>([]);
   const [isOpen, setOpen] = useState(false);
@@ -81,14 +82,21 @@ export const ExternalInput = ({
 
       const cacheKey = `${id}-${query}-${JSON.stringify(filters)}`;
 
-      const listData =
-        dataCache[cacheKey] || (await field.fetchList({ query, filters }));
+      let listData;
+
+      if (shouldCacheData && dataCache[cacheKey]) {
+        listData = dataCache[cacheKey];
+      } else {
+        listData = await field.fetchList({ query, filters });
+      }
 
       if (listData) {
         setData(listData);
         setIsLoading(false);
 
-        dataCache[cacheKey] = listData;
+        if (shouldCacheData) {
+          dataCache[cacheKey] = listData;
+        }
       }
     },
     [id, field]
@@ -163,7 +171,7 @@ export const ExternalInput = ({
           })}
           onSubmit={(e) => {
             e.preventDefault();
-
+            e.stopPropagation();
             search(searchQuery, filters);
           }}
         >
@@ -228,23 +236,25 @@ export const ExternalInput = ({
                         className={getClassNameModal("field")}
                         key={fieldName}
                       >
-                        <AutoFieldPrivate
-                          field={filterField}
-                          name={fieldName}
-                          id={`external_field_${fieldName}_filter`}
-                          label={filterField.label || fieldName}
-                          value={filters[fieldName]}
-                          onChange={(value) => {
-                            const newFilters = {
-                              ...filters,
-                              [fieldName]: value,
-                            };
+                        <FieldLabel label={filterField.label || fieldName}>
+                          <AutoField
+                            field={filterField}
+                            id={`external_field_${fieldName}_filter`}
+                            value={filters[fieldName]}
+                            onChange={(value) => {
+                              setFilters((filters) => {
+                                const newFilters = {
+                                  ...filters,
+                                  [fieldName]: value,
+                                };
 
-                            setFilters(newFilters);
+                                search(searchQuery, newFilters);
 
-                            search(searchQuery, newFilters);
-                          }}
-                        />
+                                return newFilters;
+                              });
+                            }}
+                          />
+                        </FieldLabel>
                       </div>
                     );
                   })}
