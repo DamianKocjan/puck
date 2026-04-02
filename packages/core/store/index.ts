@@ -81,6 +81,7 @@ export type AppStore<
   setStatus: (status: Status) => void;
   iframe: IframeConfig;
   _experimentalFullScreenCanvas: boolean;
+  _experimentalVirtualization: boolean;
   selectedItem?: G["UserData"]["content"][0] | null;
   getCurrentData: () => G["UserData"]["content"][0] | G["UserData"]["root"];
   setUi: (ui: Partial<UiState>, recordHistory?: boolean) => void;
@@ -125,6 +126,7 @@ export const createAppStore = (initialAppStore?: Partial<AppStore>) =>
       status: "LOADING",
       iframe: {},
       _experimentalFullScreenCanvas: false,
+      _experimentalVirtualization: false,
       metadata: {},
       fieldTransforms: {},
       ...initialAppStore,
@@ -305,7 +307,11 @@ export const createAppStore = (initialAppStore?: Partial<AppStore>) =>
           state,
           config,
           (content) => content,
-          (childItem) => {
+          (childItem, path) => {
+            // Skip nested items as these get processed by the parent's resolveComponentData
+            // Perf: wasteful to use walkAppState, which walks the entire tree
+            if (path.length > 1) return childItem;
+
             resolveComponentData(childItem, "load").then((resolved) => {
               const { state } = get();
 

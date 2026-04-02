@@ -6,6 +6,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -33,6 +34,8 @@ import { useSortable } from "@dnd-kit/react/sortable";
 import { useContextStore } from "../../lib/use-context-store";
 import { useOnDragFinished } from "../../lib/dnd/use-on-drag-finished";
 import { LoadedRichTextMenu } from "../RichTextMenu";
+import type { NodeHandle } from "../../store/slices/nodes";
+import { assignRefs } from "../../lib/assign-refs";
 
 const getClassName = getClassNameFactory("DraggableComponent", styles);
 
@@ -98,6 +101,7 @@ export const DraggableComponent = ({
   autoDragAxis,
   userDragAxis,
   inDroppableZone = true,
+  itemRef,
 }: {
   children: (ref: Ref<any>) => ReactNode;
   componentType: string;
@@ -112,6 +116,7 @@ export const DraggableComponent = ({
   autoDragAxis: DragAxis;
   userDragAxis?: DragAxis;
   inDroppableZone: boolean;
+  itemRef?: Ref<HTMLElement>;
 }) => {
   const zoom = useAppStore((s) =>
     s.selectedItem?.props.id === id ? s.zoomConfig.zoom : 1
@@ -242,9 +247,13 @@ export const DraggableComponent = ({
       if (ref.current !== el) {
         ref.current = el;
         setRerender((update) => update + 1);
+
+        if (itemRef) {
+          assignRefs([itemRef], el);
+        }
       }
     },
-    [sortableRef]
+    [itemRef, sortableRef]
   );
 
   const [portalEl, setPortalEl] = useState<HTMLElement>();
@@ -320,7 +329,11 @@ export const DraggableComponent = ({
 
   const sync = useCallback(() => {
     setStyle(getStyle());
-  }, [getStyle]);
+
+    if (itemRef) {
+      assignRefs([itemRef], ref.current);
+    }
+  }, [getStyle, itemRef]);
 
   const scheduleSync = useCallback(() => {
     if (syncRafRef.current != null) return;
@@ -335,6 +348,7 @@ export const DraggableComponent = ({
     return () => {
       if (syncRafRef.current != null) {
         cancelAnimationFrame(syncRafRef.current);
+        syncRafRef.current = null;
       }
     };
   }, []);
@@ -351,9 +365,10 @@ export const DraggableComponent = ({
         observer.disconnect();
       };
     }
-  }, [scheduleSync]);
+  }, [scheduleSync, itemRef]);
 
   const registerNode = useAppStore((s) => s.nodes.registerNode);
+  const unregisterNode = useAppStore((s) => s.nodes.unregisterNode);
 
   const hideOverlay = useCallback(() => {
     setIsVisible(false);
@@ -363,23 +378,25 @@ export const DraggableComponent = ({
     setIsVisible(true);
   }, []);
 
+  const nodeHandleRef = useRef<NodeHandle>({
+    sync: () => null,
+    hideOverlay: () => null,
+    showOverlay: () => null,
+  });
+
+  useLayoutEffect(() => {
+    nodeHandleRef.current.sync = sync;
+    nodeHandleRef.current.hideOverlay = hideOverlay;
+    nodeHandleRef.current.showOverlay = showOverlay;
+  }, [hideOverlay, showOverlay, sync]);
+
   useEffect(() => {
-    registerNode(id, {
-      methods: { sync, showOverlay, hideOverlay },
-      element: ref.current ?? null,
-    });
+    registerNode(id, nodeHandleRef.current);
 
     return () => {
-      registerNode(id, {
-        methods: {
-          sync: () => null,
-          hideOverlay: () => null,
-          showOverlay: () => null,
-        },
-        element: null,
-      });
+      unregisterNode(id);
     };
-  }, [id, zoneCompound, index, componentType, sync]);
+  }, [id, registerNode, unregisterNode]);
 
   const CustomActionBar = useMemo(
     () => overrides.actionBar || DefaultActionBar,
@@ -393,6 +410,13 @@ export const DraggableComponent = ({
 
   const onClick = useCallback(
     (e: Event | SyntheticEvent) => {
+      // Don't change selection during a drag.
+      // This avoids mouseup clicks selecting the dragged-over component.
+      const userIsDragging = !!zoneStore.getState().draggedItem;
+      if (userIsDragging) {
+        return;
+      }
+
       const el = e.target as Element;
 
       if (!el.closest("[data-puck-overlay-portal]")) {
@@ -545,7 +569,8 @@ export const DraggableComponent = ({
   const onDragFinished = useOnDragFinished((finished) => {
     if (finished) {
       startTransition(() => {
-        scheduleSync();
+        // Sync immediately, to avoid a flash of the overlay in the wrong place.
+        sync();
         setDragFinished(true);
       });
     } else {
